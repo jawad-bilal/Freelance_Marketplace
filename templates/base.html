@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Student Freelance Marketplace{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,650&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <header>
         <div class="bar">
-            <a class="brand" href="{{ url_for('home') }}">Student Freelance Marketplace</a>
+            <a class="brand" href="{{ url_for('home') }}"><span class="mark">SF</span> Student Freelance</a>
             <nav>
                 <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
                 <a class="{% if request.endpoint in ['students', 'student_detail'] %}active{% endif %}" href="{{ url_for('students') }}">Students</a>
@@ -29,7 +32,10 @@
         {% block content %}{% endblock %}
     </main>
     <footer>
-        Coursework database project. Nine tables, joined with ordinary SQL.
+        <div class="foot">
+            <span>Student Freelance Marketplace</span>
+            <span>Nine tables, joined with ordinary SQL.</span>
+        </div>
     </footer>
 </body>
 </html>
