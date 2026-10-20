@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Skills · Student Freelance Marketplace{% endblock %}
+{% block content %}
+<h1>Skills</h1>
+<p class="muted">The student count uses StudentSkill. A skill with no students shows 0.</p>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Skill</th>
+                <th>Students</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for skill in skills %}
+            <tr>
+                <td>{{ skill.skill_name }}</td>
+                <td>{{ skill.student_count }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2">No skills yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<section class="card">
+    <h2>Add a skill</h2>
+    <form method="post">
+        <label class="field">Skill name
+            <input type="text" name="skill_name" maxlength="80" required value="{{ request.form.get('skill_name', '') }}">
+        </label>
+        <div class="actions"><button type="submit">Save skill</button></div>
+    </form>
+</section>
+{% endblock %}

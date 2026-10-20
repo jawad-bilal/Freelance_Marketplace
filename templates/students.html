@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Students · Student Freelance Marketplace{% endblock %}
+{% block content %}
+<h1>Students</h1>
+<p class="muted">Skills come from the StudentSkill table, which links Student and Skill.</p>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>University</th>
+                <th>Email</th>
+                <th>Skills</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td><a href="{{ url_for('student_detail', student_id=student.student_id) }}">{{ student.full_name }}</a></td>
+                <td>{{ student.university }}</td>
+                <td>{{ student.email }}</td>
+                <td>{{ student.skills or "None yet" }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">No students yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<section class="card">
+    <h2>Add a student</h2>
+    <form method="post">
+        <label class="field">Full name
+            <input type="text" name="full_name" maxlength="100" required value="{{ request.form.get('full_name', '') }}">
+        </label>
+        <label class="field">Email
+            <input type="email" name="email" maxlength="120" required value="{{ request.form.get('email', '') }}">
+        </label>
+        <label class="field">University
+            <input type="text" name="university" maxlength="120" required value="{{ request.form.get('university', '') }}">
+        </label>
+        <label class="field">Short bio
+            <textarea name="bio" maxlength="400">{{ request.form.get('bio', '') }}</textarea>
+        </label>
+        <p class="field">Skills</p>
+        {% if skills %}
+        <div class="checks">
+            {% for skill in skills %}
+            <label class="check">
+                <input type="checkbox" name="skill_id" value="{{ skill.skill_id }}" {% if skill.skill_id|string in request.form.getlist('skill_id') %}checked{% endif %}>
+                {{ skill.skill_name }}
+            </label>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted">Add a skill on the Skills page first. You can still save the student.</p>
+        {% endif %}
+        <div class="actions"><button type="submit">Save student</button></div>
+    </form>
+</section>
+{% endblock %}

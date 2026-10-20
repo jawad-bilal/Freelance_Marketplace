@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Home · Student Freelance Marketplace{% endblock %}
+{% block content %}
+<h1>Student Freelance Marketplace</h1>
+<p class="muted">Students list skills, clients post projects, and a proposal can become a contract, a payment, and a review.</p>
+
+<div class="stats">
+    {% for name, count in cards %}
+    <div class="stat">
+        <strong>{{ count }}</strong>
+        {{ name }}
+    </div>
+    {% endfor %}
+</div>
+
+<section class="card">
+    <h2>Open projects</h2>
+    {% if open_projects %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Project</th>
+                    <th>Client</th>
+                    <th>Budget</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in open_projects %}
+                <tr>
+                    <td><a href="{{ url_for('project_detail', project_id=project.project_id) }}">{{ project.title }}</a></td>
+                    <td>{{ project.client_name }}</td>
+                    <td>{{ project.budget|money }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted">No open projects. Post one from the Projects page.</p>
+    {% endif %}
+</section>
+{% endblock %}

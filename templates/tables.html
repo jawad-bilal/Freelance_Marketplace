@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Tables · Student Freelance Marketplace{% endblock %}
+{% block content %}
+<h1>Tables and relationships</h1>
+<p class="muted">These are the nine tables from the proposal. The SQL that creates them is in schema.sql.</p>
+
+<section class="card">
+    <h2>Primary keys</h2>
+    <ul>
+        <li>Student.student_id</li>
+        <li>Skill.skill_id</li>
+        <li>StudentSkill uses both student_id and skill_id together</li>
+        <li>Client.client_id</li>
+        <li>Project.project_id</li>
+        <li>Proposal.proposal_id</li>
+        <li>Contract.contract_id</li>
+        <li>Payment.payment_id</li>
+        <li>Review.review_id</li>
+    </ul>
+</section>
+
+<section class="card">
+    <h2>Relationships</h2>
+    <p class="muted">One-to-one here is a foreign key with UNIQUE, so the child id cannot be repeated. It is the one-to-many idea with a limit of one.</p>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Type</th>
+                    <th>Where it is stored</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Student</td>
+                    <td>Skill</td>
+                    <td>Many-to-many</td>
+                    <td>StudentSkill</td>
+                </tr>
+                <tr>
+                    <td>Client</td>
+                    <td>Project</td>
+                    <td>One-to-many</td>
+                    <td>Project.client_id</td>
+                </tr>
+                <tr>
+                    <td>Project</td>
+                    <td>Proposal</td>
+                    <td>One-to-many</td>
+                    <td>Proposal.project_id</td>
+                </tr>
+                <tr>
+                    <td>Student</td>
+                    <td>Proposal</td>
+                    <td>One-to-many</td>
+                    <td>Proposal.student_id</td>
+                </tr>
+                <tr>
+                    <td>Project</td>
+                    <td>Contract</td>
+                    <td>One-to-one</td>
+                    <td>Contract.project_id is unique</td>
+                </tr>
+                <tr>
+                    <td>Proposal</td>
+                    <td>Contract</td>
+                    <td>One-to-one</td>
+                    <td>Contract.proposal_id is unique</td>
+                </tr>
+                <tr>
+                    <td>Contract</td>
+                    <td>Payment</td>
+                    <td>One-to-many</td>
+                    <td>Payment.contract_id</td>
+                </tr>
+                <tr>
+                    <td>Contract</td>
+                    <td>Review</td>
+                    <td>One-to-one</td>
+                    <td>Review.contract_id is unique</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <h2>What happens on the site</h2>
+    <ol>
+        <li>A client posts a project. The new row starts as open.</li>
+        <li>A student submits one proposal for that project.</li>
+        <li>Accepting a proposal writes four changes together: that proposal becomes accepted, the others become rejected, a contract is inserted, and the project becomes in progress.</li>
+        <li>Payments are extra rows for the same contract.</li>
+        <li>Saving a review marks the contract and the project completed. A second review is refused because contract_id is unique.</li>
+    </ol>
+</section>
+{% endblock %}

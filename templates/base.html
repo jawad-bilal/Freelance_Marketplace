@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Student Freelance Marketplace{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="bar">
+            <a class="brand" href="{{ url_for('home') }}">Student Freelance Marketplace</a>
+            <nav>
+                <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
+                <a class="{% if request.endpoint in ['students', 'student_detail'] %}active{% endif %}" href="{{ url_for('students') }}">Students</a>
+                <a class="{% if request.endpoint == 'clients' %}active{% endif %}" href="{{ url_for('clients') }}">Clients</a>
+                <a class="{% if request.endpoint in ['projects', 'project_detail'] %}active{% endif %}" href="{{ url_for('projects') }}">Projects</a>
+                <a class="{% if request.endpoint == 'skills' %}active{% endif %}" href="{{ url_for('skills') }}">Skills</a>
+                <a class="{% if request.endpoint == 'tables' %}active{% endif %}" href="{{ url_for('tables') }}">Tables</a>
+            </nav>
+        </div>
+    </header>
+    <main>
+        {% with messages = get_flashed_messages() %}
+            {% for message in messages %}
+                <p class="flash">{{ message }}</p>
+            {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        Coursework database project. Nine tables, joined with ordinary SQL.
+    </footer>
+</body>
+</html>

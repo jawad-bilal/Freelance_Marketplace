@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Clients · Student Freelance Marketplace{% endblock %}
+{% block content %}
+<h1>Clients</h1>
+<p class="muted">Project count is a one-to-many join from Client to Project.</p>
+
+<div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Email</th>
+                <th>Projects</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+            <tr>
+                <td>{{ client.full_name }}</td>
+                <td>{{ client.company or "—" }}</td>
+                <td>{{ client.email }}</td>
+                <td>{{ client.project_count }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">No clients yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<section class="card">
+    <h2>Add a client</h2>
+    <form method="post">
+        <label class="field">Full name
+            <input type="text" name="full_name" maxlength="100" required value="{{ request.form.get('full_name', '') }}">
+        </label>
+        <label class="field">Email
+            <input type="email" name="email" maxlength="120" required value="{{ request.form.get('email', '') }}">
+        </label>
+        <label class="field">Company
+            <input type="text" name="company" maxlength="120" value="{{ request.form.get('company', '') }}">
+        </label>
+        <div class="actions"><button type="submit">Save client</button></div>
+    </form>
+</section>
+{% endblock %}
