@@ -30,7 +30,8 @@ def database_url():
 
 @contextmanager
 def get_conn():
-    connection = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=10)
+    # Neon can take a few seconds to wake a free-tier database.
+    connection = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=30)
     try:
         yield connection
         connection.commit()

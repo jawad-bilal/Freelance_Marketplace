@@ -1,43 +1,47 @@
 {% extends "base.html" %}
 {% block title %}Home · Student Freelance Marketplace{% endblock %}
 {% block content %}
-<h1>Student Freelance Marketplace</h1>
-<p class="muted">Students list skills, clients post projects, and a proposal can become a contract, a payment, and a review.</p>
+<section class="hero">
+    <div>
+        <p class="eyebrow">University freelance board</p>
+        <h1>Students for hire. Projects worth doing.</h1>
+        <p>Students list skills, clients post projects, and a proposal can become a contract, a payment, and a review.</p>
+        <div class="hero-actions">
+            <a class="button" href="{{ url_for('projects') }}">Browse projects</a>
+            <a class="button button-ghost" href="{{ url_for('students') }}">Meet students</a>
+        </div>
+    </div>
+    <div class="hero-note">
+        <strong>{{ cards[0][1] }} students</strong>
+        <p>ready to take on client work, from websites to writing.</p>
+    </div>
+</section>
 
 <div class="stats">
     {% for name, count in cards %}
     <div class="stat">
         <strong>{{ count }}</strong>
-        {{ name }}
+        <span>{{ name }}</span>
     </div>
     {% endfor %}
 </div>
 
-<section class="card">
+<div class="section-head">
     <h2>Open projects</h2>
-    {% if open_projects %}
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Project</th>
-                    <th>Client</th>
-                    <th>Budget</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for project in open_projects %}
-                <tr>
-                    <td><a href="{{ url_for('project_detail', project_id=project.project_id) }}">{{ project.title }}</a></td>
-                    <td>{{ project.client_name }}</td>
-                    <td>{{ project.budget|money }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="muted">No open projects. Post one from the Projects page.</p>
-    {% endif %}
-</section>
+    <a href="{{ url_for('projects') }}">All projects</a>
+</div>
+{% if open_projects %}
+<div class="project-grid">
+    {% for project in open_projects %}
+    <a class="project-card" href="{{ url_for('project_detail', project_id=project.project_id) }}">
+        <span class="badge badge-open">Open</span>
+        <h3>{{ project.title }}</h3>
+        <p class="muted">{{ project.client_name }}</p>
+        <strong>{{ project.budget|money }}</strong>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p class="muted">No open projects. Post one from the Projects page.</p>
+{% endif %}
 {% endblock %}

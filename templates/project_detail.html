@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ project.title }} · Student Freelance Marketplace{% endblock %}
 {% block content %}
-<p class="back"><a href="{{ url_for('projects') }}">Back to projects</a></p>
-<h1>{{ project.title }}</h1>
-<p>
-    {{ project.client_name }}{% if project.company %} · {{ project.company }}{% endif %}
-    · Budget {{ project.budget|money }}
-    · <span class="badge badge-{{ project.status }}">{{ project.status|label }}</span>
-</p>
-<p class="preserve">{{ project.description }}</p>
+<section class="profile">
+    <p class="back"><a href="{{ url_for('projects') }}">Back to projects</a></p>
+    <h1>{{ project.title }}</h1>
+    <p>
+        {{ project.client_name }}{% if project.company %} · {{ project.company }}{% endif %}
+        · Budget {{ project.budget|money }}
+        · <span class="badge badge-{{ project.status }}">{{ project.status|label }}</span>
+    </p>
+    <p class="preserve">{{ project.description }}</p>
+</section>
 
 <section class="card">
     <h2>Proposals</h2>

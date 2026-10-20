@@ -1,22 +1,24 @@
 {% extends "base.html" %}
 {% block title %}{{ student.full_name }} · Student Freelance Marketplace{% endblock %}
 {% block content %}
-<p class="back"><a href="{{ url_for('students') }}">Back to students</a></p>
-<h1>{{ student.full_name }}</h1>
-<p>{{ student.university }} · {{ student.email }}</p>
-{% if student.bio %}<p class="preserve">{{ student.bio }}</p>{% endif %}
-<p>
-    {% if rating.review_count %}
-    Average rating {{ rating.avg_rating }} / 5 from {{ rating.review_count }} review{% if rating.review_count != 1 %}s{% endif %}.
-    {% else %}
-    No reviews yet.
-    {% endif %}
-</p>
+<section class="profile">
+    <p class="back"><a href="{{ url_for('students') }}">Back to students</a></p>
+    <h1>{{ student.full_name }}</h1>
+    <p class="muted">{{ student.university }} · {{ student.email }}</p>
+    {% if student.bio %}<p class="preserve">{{ student.bio }}</p>{% endif %}
+    <p>
+        {% if rating.review_count %}
+        Average rating {{ rating.avg_rating }} / 5 from {{ rating.review_count }} review{% if rating.review_count != 1 %}s{% endif %}.
+        {% else %}
+        No reviews yet.
+        {% endif %}
+    </p>
+</section>
 
 <section class="card">
     <h2>Skills</h2>
     {% if skills %}
-    <ul>
+    <ul class="pills">
         {% for skill in skills %}<li>{{ skill.skill_name }}</li>{% endfor %}
     </ul>
     {% else %}
