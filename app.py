@@ -10,11 +10,18 @@ import os
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-import psycopg
+import pyodbc
 from flask import Flask, flash, redirect, render_template, request, url_for
-from psycopg.errors import CheckViolation, ForeignKeyViolation, UniqueViolation
 
-from db import database_url, execute, fetch_all, fetch_one, get_conn
+from db import (
+    execute,
+    fetch_all,
+    fetch_one,
+    get_conn,
+    integrity_kind,
+    is_configured,
+    prepare,
+)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-change-me")
@@ -46,7 +53,7 @@ def money(value):
 def require_database():
     if request.endpoint in ("static", "tables"):
         return None
-    if not database_url():
+    if not is_configured():
         return render_template("setup.html")
     return None
 
@@ -140,11 +147,15 @@ def students():
 
     # Many-to-many: StudentSkill sits between Student and Skill.
     # LEFT JOIN keeps a student who does not have a skill yet.
-    # STRING_AGG is the PostgreSQL form of MySQL GROUP_CONCAT.
+    # STRING_AGG joins skill names into one cell (SQL Server 2017+).
     rows = fetch_all(
         """
         SELECT st.student_id, st.full_name, st.email, st.university,
-               COALESCE(STRING_AGG(sk.skill_name, ', ' ORDER BY sk.skill_name), '') AS skills
+               COALESCE(
+                   STRING_AGG(sk.skill_name, ', ')
+                       WITHIN GROUP (ORDER BY sk.skill_name),
+                   ''
+               ) AS skills
         FROM Student st
         LEFT JOIN StudentSkill ss ON ss.student_id = st.student_id
         LEFT JOIN Skill sk ON sk.skill_id = ss.skill_id
@@ -175,30 +186,38 @@ def create_student():
 
     # The student row and the skill links share one transaction.
     # If a skill insert fails, the student row is not kept either.
+    # OUTPUT INSERTED is SQL Server's way to return the new id.
     try:
         with get_conn() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
+            cursor = connection.cursor()
+            cursor.execute(
+                prepare(
                     """
                     INSERT INTO Student (full_name, email, university, bio)
+                    OUTPUT INSERTED.student_id
                     VALUES (%s, %s, %s, %s)
-                    RETURNING student_id
-                    """,
-                    (name, email, university, bio or None),
-                )
-                student_id = cursor.fetchone()["student_id"]
-                for skill_id in skill_ids:
-                    cursor.execute(
+                    """
+                ),
+                (name, email, university, bio or None),
+            )
+            student_id = cursor.fetchone()[0]
+            for skill_id in skill_ids:
+                cursor.execute(
+                    prepare(
                         """
                         INSERT INTO StudentSkill (student_id, skill_id)
                         VALUES (%s, %s)
-                        """,
-                        (student_id, skill_id),
-                    )
-    except UniqueViolation:
-        return "That email is already used."
-    except ForeignKeyViolation:
-        return "Choose skills from the list."
+                        """
+                    ),
+                    (student_id, skill_id),
+                )
+    except pyodbc.IntegrityError as error:
+        kind = integrity_kind(error)
+        if kind == "unique":
+            return "That email is already used."
+        if kind == "foreign":
+            return "Choose skills from the list."
+        return "Could not save that student."
     return None
 
 
@@ -318,8 +337,10 @@ def create_client():
             """,
             (name, email, company or None),
         )
-    except UniqueViolation:
-        return "That email is already used."
+    except pyodbc.IntegrityError as error:
+        if integrity_kind(error) == "unique":
+            return "That email is already used."
+        return "Could not save that client."
     return None
 
 
@@ -351,8 +372,10 @@ def create_skill():
         return "Skill name is required."
     try:
         execute("INSERT INTO Skill (skill_name) VALUES (%s)", (name,))
-    except UniqueViolation:
-        return "That skill already exists."
+    except pyodbc.IntegrityError as error:
+        if integrity_kind(error) == "unique":
+            return "That skill already exists."
+        return "Could not save that skill."
     return None
 
 
@@ -400,10 +423,13 @@ def create_project():
             """,
             (client_id, title, description, budget),
         )
-    except ForeignKeyViolation:
-        return "Choose a client from the list."
-    except CheckViolation:
-        return "Budget must be greater than 0."
+    except pyodbc.IntegrityError as error:
+        kind = integrity_kind(error)
+        if kind == "foreign":
+            return "Choose a client from the list."
+        if kind == "check":
+            return "Budget must be greater than 0."
+        return "Could not save that project."
     return None
 
 
@@ -520,11 +546,14 @@ def add_proposal(project_id):
             """,
             (project_id, student_id, cover_letter, bid_amount),
         )
-    except UniqueViolation:
-        flash("That student already sent a proposal for this project.")
-        return redirect(url_for("project_detail", project_id=project_id))
-    except ForeignKeyViolation:
-        flash("Choose a student from the list.")
+    except pyodbc.IntegrityError as error:
+        kind = integrity_kind(error)
+        if kind == "unique":
+            flash("That student already sent a proposal for this project.")
+        elif kind == "foreign":
+            flash("Choose a student from the list.")
+        else:
+            flash("Could not save that proposal.")
         return redirect(url_for("project_detail", project_id=project_id))
 
     flash("Proposal submitted.")
@@ -537,8 +566,9 @@ def accept_proposal(proposal_id):
     project_id = None
     try:
         with get_conn() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
+            cursor = connection.cursor()
+            cursor.execute(
+                prepare(
                     """
                     SELECT pr.proposal_id, pr.project_id, pr.student_id,
                            pr.bid_amount, pr.status,
@@ -546,61 +576,82 @@ def accept_proposal(proposal_id):
                     FROM Proposal pr
                     JOIN Project p ON p.project_id = pr.project_id
                     WHERE pr.proposal_id = %s
-                    """,
-                    (proposal_id,),
-                )
-                proposal = cursor.fetchone()
-                if proposal is None:
-                    flash("Proposal not found.")
-                    return redirect(url_for("projects"))
+                    """
+                ),
+                (proposal_id,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                flash("Proposal not found.")
+                return redirect(url_for("projects"))
 
-                project_id = proposal["project_id"]
-                if proposal["status"] != "pending" or proposal["project_status"] != "open":
-                    flash("Only a pending proposal on an open project can be accepted.")
-                    return redirect(url_for("project_detail", project_id=project_id))
+            proposal = {
+                "proposal_id": row[0],
+                "project_id": row[1],
+                "student_id": row[2],
+                "bid_amount": row[3],
+                "status": row[4],
+                "client_id": row[5],
+                "project_status": row[6],
+            }
+            project_id = proposal["project_id"]
+            if proposal["status"] != "pending" or proposal["project_status"] != "open":
+                flash("Only a pending proposal on an open project can be accepted.")
+                return redirect(url_for("project_detail", project_id=project_id))
 
-                cursor.execute(
+            cursor.execute(
+                prepare(
                     """
                     UPDATE Proposal
                     SET status = 'rejected'
                     WHERE project_id = %s AND proposal_id <> %s
-                    """,
-                    (project_id, proposal_id),
-                )
-                cursor.execute(
+                    """
+                ),
+                (project_id, proposal_id),
+            )
+            cursor.execute(
+                prepare(
                     """
                     UPDATE Proposal
                     SET status = 'accepted'
                     WHERE proposal_id = %s
-                    """,
-                    (proposal_id,),
-                )
-                cursor.execute(
+                    """
+                ),
+                (proposal_id,),
+            )
+            cursor.execute(
+                prepare(
                     """
                     INSERT INTO Contract (
                         project_id, proposal_id, student_id, client_id,
                         agreed_amount, start_date, status
                     )
-                    VALUES (%s, %s, %s, %s, %s, CURRENT_DATE, 'active')
-                    """,
-                    (
-                        project_id,
-                        proposal_id,
-                        proposal["student_id"],
-                        proposal["client_id"],
-                        proposal["bid_amount"],
-                    ),
-                )
-                cursor.execute(
+                    VALUES (%s, %s, %s, %s, %s, CAST(GETDATE() AS DATE), 'active')
+                    """
+                ),
+                (
+                    project_id,
+                    proposal_id,
+                    proposal["student_id"],
+                    proposal["client_id"],
+                    proposal["bid_amount"],
+                ),
+            )
+            cursor.execute(
+                prepare(
                     """
                     UPDATE Project
                     SET status = 'in_progress'
                     WHERE project_id = %s
-                    """,
-                    (project_id,),
-                )
-    except UniqueViolation:
-        flash("This project already has a contract.")
+                    """
+                ),
+                (project_id,),
+            )
+    except pyodbc.IntegrityError as error:
+        if integrity_kind(error) == "unique":
+            flash("This project already has a contract.")
+        else:
+            flash("Could not accept that proposal.")
         if project_id is None:
             return redirect(url_for("projects"))
         return redirect(url_for("project_detail", project_id=project_id))
@@ -660,30 +711,39 @@ def add_review(contract_id):
     # student_id and client_id are copied from the contract.
     try:
         with get_conn() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
+            cursor = connection.cursor()
+            cursor.execute(
+                prepare(
                     """
                     INSERT INTO Review (contract_id, student_id, client_id, rating, comment)
                     VALUES (%s, %s, %s, %s, %s)
-                    """,
-                    (
-                        contract_id,
-                        contract["student_id"],
-                        contract["client_id"],
-                        rating,
-                        comment or None,
-                    ),
-                )
-                cursor.execute(
-                    "UPDATE Contract SET status = 'completed' WHERE contract_id = %s",
-                    (contract_id,),
-                )
-                cursor.execute(
-                    "UPDATE Project SET status = 'completed' WHERE project_id = %s",
-                    (contract["project_id"],),
-                )
-    except UniqueViolation:
-        flash("This contract already has a review.")
+                    """
+                ),
+                (
+                    contract_id,
+                    contract["student_id"],
+                    contract["client_id"],
+                    rating,
+                    comment or None,
+                ),
+            )
+            cursor.execute(
+                prepare(
+                    "UPDATE Contract SET status = 'completed' WHERE contract_id = %s"
+                ),
+                (contract_id,),
+            )
+            cursor.execute(
+                prepare(
+                    "UPDATE Project SET status = 'completed' WHERE project_id = %s"
+                ),
+                (contract["project_id"],),
+            )
+    except pyodbc.IntegrityError as error:
+        if integrity_kind(error) == "unique":
+            flash("This contract already has a review.")
+        else:
+            flash("Could not save that review.")
         return redirect(url_for("project_detail", project_id=contract["project_id"]))
 
     flash("Review saved. The project is marked completed.")
@@ -700,12 +760,12 @@ def page_not_found(_error):
     return render_template("not_found.html"), 404
 
 
-@app.errorhandler(psycopg.Error)
+@app.errorhandler(pyodbc.Error)
 def database_error(error):
     return render_template(
         "db_error.html",
         message=str(error).strip(),
-        hint="Check DATABASE_URL in .env, then run: python init_db.py",
+        hint="Check DB_SERVER and DB_NAME in .env, then run: python init_db.py",
     ), 500
 
 

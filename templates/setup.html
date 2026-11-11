@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Setup · Student Freelance Marketplace{% endblock %}
 {% block content %}
-<h1>Connect the database</h1>
-<p>The pages need a Neon connection string before they can read or write rows.</p>
+<h1>Connect SQL Server</h1>
+<p>The pages need a local Microsoft SQL Server database before they can read or write rows.</p>
 <ol>
-    <li>Create a free project at neon.tech. Choose PostgreSQL, which is the only database Neon offers.</li>
-    <li>Open Connect and copy the connection string.</li>
-    <li>Copy <code>.env.example</code> to <code>.env</code> and paste the string as <code>DATABASE_URL</code>.</li>
-    <li>In the Neon SQL editor, run <code>schema.sql</code> and then <code>seed.sql</code>. Or, from this folder, run <code>python init_db.py</code>.</li>
+    <li>Install SQL Server (Developer or Express) and SSMS on your laptop.</li>
+    <li>Copy <code>.env.example</code> to <code>.env</code>. Set <code>DB_SERVER</code> (often <code>localhost</code> or <code>.\SQLEXPRESS</code>) and keep <code>DB_TRUSTED=yes</code> for Windows login.</li>
+    <li>Install the ODBC Driver for SQL Server, then run <code>pip install -r requirements.txt</code>.</li>
+    <li>Create the tables with <code>python init_db.py</code>. Or open <code>schema.sql</code> and <code>seed.sql</code> in SSMS against the <code>FreelanceMarketplace</code> database.</li>
     <li>Start the site with <code>python app.py</code> and open http://127.0.0.1:5000.</li>
 </ol>
 <p>The Tables page explains the nine tables and does not need the database.</p>

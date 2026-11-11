@@ -1,12 +1,15 @@
-"""Create the nine tables and load the sample rows.
+"""Create the database, the nine tables, and the sample rows.
 
 Running this again drops those tables first, then loads the sample data.
-Other tables in the same Neon database are left alone.
+Other databases on the same SQL Server are left alone.
 """
 
 from pathlib import Path
+import re
 
-from db import database_url, get_conn
+import pyodbc
+
+from db import _env, connection_string, get_conn, is_configured
 
 
 def statements(script):
@@ -23,18 +26,47 @@ def run_script(cursor, filename):
     script = (Path(__file__).parent / filename).read_text(encoding="utf-8")
     for statement in statements(script):
         cursor.execute(statement)
-        if cursor.description is not None:
-            cursor.fetchall()
+        while True:
+            try:
+                if cursor.description is not None:
+                    cursor.fetchall()
+            except pyodbc.ProgrammingError:
+                pass
+            if not cursor.nextset():
+                break
+
+
+def ensure_database():
+    db_name = _env("DB_NAME", "FreelanceMarketplace")
+    if not re.fullmatch(r"[A-Za-z0-9_]+", db_name):
+        raise SystemExit("DB_NAME may only contain letters, numbers, and underscores.")
+
+    # CREATE DATABASE cannot run inside a normal transaction.
+    connection = pyodbc.connect(connection_string(database="master"), timeout=15, autocommit=True)
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            f"""
+            IF DB_ID(N'{db_name}') IS NULL
+                CREATE DATABASE [{db_name}];
+            """
+        )
+    finally:
+        connection.close()
+    print(f"Database ready: {db_name}")
 
 
 def main():
-    if not database_url():
-        raise SystemExit("Set DATABASE_URL in the .env file, then run this again.")
+    if not is_configured():
+        raise SystemExit(
+            "Set DB_SERVER and DB_NAME in the .env file, then run this again."
+        )
 
+    ensure_database()
     with get_conn() as connection:
-        with connection.cursor() as cursor:
-            run_script(cursor, "schema.sql")
-            run_script(cursor, "seed.sql")
+        cursor = connection.cursor()
+        run_script(cursor, "schema.sql")
+        run_script(cursor, "seed.sql")
     print("Tables created and sample rows inserted.")
 
 

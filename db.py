@@ -1,37 +1,78 @@
-"""Database connection for Neon (PostgreSQL).
+"""Database connection for local Microsoft SQL Server (SSMS).
 
 Pages pass SQL and a tuple of values. The %s marks are placeholders.
-psycopg fills them in. User text is never joined onto the SQL string.
+This file turns them into ? marks for pyodbc. User text is never joined
+onto the SQL string.
 """
 
 import os
 from contextlib import contextmanager
 from pathlib import Path
 
-import psycopg
+import pyodbc
 from dotenv import load_dotenv
-from psycopg.rows import dict_row
 
 load_dotenv(Path(__file__).with_name(".env"))
 
 
-def database_url():
-    url = os.environ.get("DATABASE_URL", "").strip()
-    if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://"):]
-    # Neon refuses a connection that does not use SSL.
-    # A local PostgreSQL install does not need that setting.
-    host_is_local = "localhost" in url or "127.0.0.1" in url
-    if url and "sslmode=" not in url and not host_is_local:
-        separator = "&" if "?" in url else "?"
-        url = f"{url}{separator}sslmode=require"
-    return url
+def _env(name, default=""):
+    return os.environ.get(name, default).strip()
+
+
+def is_configured():
+    return bool(_env("DB_SERVER") and _env("DB_NAME"))
+
+
+def connection_string(database=None):
+    """Build an ODBC connection string for SQL Server."""
+    server = _env("DB_SERVER", "localhost")
+    db_name = database or _env("DB_NAME", "FreelanceMarketplace")
+    driver = _env("DB_DRIVER", "ODBC Driver 17 for SQL Server")
+    trusted = _env("DB_TRUSTED", "yes").lower() in ("1", "true", "yes")
+
+    parts = [
+        f"DRIVER={{{driver}}}",
+        f"SERVER={server}",
+        f"DATABASE={db_name}",
+    ]
+    if trusted:
+        parts.append("Trusted_Connection=yes")
+    else:
+        user = _env("DB_USER")
+        password = _env("DB_PASSWORD")
+        if not user:
+            raise RuntimeError("Set DB_USER and DB_PASSWORD, or set DB_TRUSTED=yes.")
+        parts.append(f"UID={user}")
+        parts.append(f"PWD={password}")
+    return ";".join(parts)
+
+
+def prepare(sql):
+    # Keep %s in app.py. pyodbc wants ?.
+    return sql.replace("%s", "?")
+
+
+def _rows_as_dicts(cursor):
+    if cursor.description is None:
+        return []
+    columns = [column[0] for column in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def _row_as_dict(cursor):
+    if cursor.description is None:
+        return None
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    columns = [column[0] for column in cursor.description]
+    return dict(zip(columns, row))
 
 
 @contextmanager
-def get_conn():
-    # Neon can take a few seconds to wake a free-tier database.
-    connection = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=30)
+def get_conn(database=None):
+    connection = pyodbc.connect(connection_string(database=database), timeout=15)
+    connection.autocommit = False
     try:
         yield connection
         connection.commit()
@@ -44,19 +85,31 @@ def get_conn():
 
 def fetch_all(sql, params=()):
     with get_conn() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchall()
+        cursor = connection.cursor()
+        cursor.execute(prepare(sql), params)
+        return _rows_as_dicts(cursor)
 
 
 def fetch_one(sql, params=()):
     with get_conn() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchone()
+        cursor = connection.cursor()
+        cursor.execute(prepare(sql), params)
+        return _row_as_dict(cursor)
 
 
 def execute(sql, params=()):
     with get_conn() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(sql, params)
+        cursor = connection.cursor()
+        cursor.execute(prepare(sql), params)
+
+
+def integrity_kind(error):
+    """Turn a SQL Server IntegrityError into unique / foreign / check."""
+    message = str(error).lower()
+    if "unique" in message or "duplicate" in message or "primary key" in message:
+        return "unique"
+    if "foreign key" in message:
+        return "foreign"
+    if "check" in message:
+        return "check"
+    return "other"
