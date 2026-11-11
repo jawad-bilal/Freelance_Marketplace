@@ -4,6 +4,8 @@ Each page runs a short SQL statement. There is no ORM.
 The nine tables are created by schema.sql.
 """
 
+import utils.clients
+import utils.http_session
 import utils.transport
 import utils.session
 import os
